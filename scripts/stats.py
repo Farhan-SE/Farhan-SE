@@ -27,7 +27,6 @@ query($login: String!) {
       }
     }
     repositories(first: 100, ownerAffiliations: OWNER, isFork: false) {
-      totalCount
       nodes { languages(first: 10) { edges { size node { name color } } } }
     }
   }
@@ -38,12 +37,10 @@ THEMES = {
     "dark": {
         "bg": "#0d1117", "panel": "#161b22", "border": "#30363d",
         "text": "#e6edf3", "muted": "#8b949e", "accent": "#2b7fff",
-        "ramp": ["#1c2230", "#0f3a7a", "#1858c4", "#2b7fff", "#7cb4ff"],
     },
     "light": {
         "bg": "#ffffff", "panel": "#f6f8fa", "border": "#d0d7de",
         "text": "#1f2328", "muted": "#59636e", "accent": "#1f6fe5",
-        "ramp": ["#ebeff4", "#bcd6ff", "#7cb0ff", "#2b7fff", "#0b4fc2"],
     },
 }
 
@@ -90,34 +87,21 @@ def summarize(user):
         "login": user["login"],
         "total": cc["contributionCalendar"]["totalContributions"],
         "prs": user["pullRequests"]["totalCount"],
-        "repos": user["repositories"]["totalCount"],
-        "active": sum(1 for d in days if d["contributionCount"]),
         "longest": longest,
         "current": current,
-        "weeks": cc["contributionCalendar"]["weeks"],
         "langs": top,
     }
 
 
-def level(count, peak):
-    if count == 0:
-        return 0
-    q = count / peak
-    return 1 if q <= 0.15 else 2 if q <= 0.35 else 3 if q <= 0.65 else 4
-
-
 def render(s, t):
-    W, H = 840, 410
+    W, H = 840, 250
     pad = 28
-    peak = max((d["contributionCount"] for w in s["weeks"] for d in w["contributionDays"]), default=1) or 1
     updated = datetime.now(timezone.utc).strftime("%d %b %Y")
 
     tiles = [
         ("Contributions", f"{s['total']:,}", "last 12 months"),
         ("Pull requests", f"{s['prs']:,}", "all time"),
-        ("Active days", f"{s['active']}", "last 12 months"),
         ("Longest streak", f"{s['longest']}d", f"current {s['current']}d"),
-        ("Repositories", f"{s['repos']}", "owned"),
     ]
     gap = 12
     tw = (W - 2 * pad - gap * (len(tiles) - 1)) / len(tiles)
@@ -133,32 +117,7 @@ def render(s, t):
             f"</g>"
         )
 
-    cell, cgap = 11, 3
-    grid_w = len(s["weeks"]) * (cell + cgap) - cgap
-    gx = (W - grid_w) / 2
-    gy = 230
-    cells = []
-    month_labels = []
-    last_month = None
-    for wi, w in enumerate(s["weeks"]):
-        first = w["contributionDays"][0]["date"]
-        m = first[5:7]
-        if m != last_month and w["contributionDays"][0]["date"][8:10] <= "07":
-            month_labels.append(
-                f'<text x="{gx + wi * (cell + cgap):.1f}" y="{gy - 8}" class="sub">'
-                f'{datetime.strptime(first, "%Y-%m-%d").strftime("%b")}</text>'
-            )
-            last_month = m
-        for d in w["contributionDays"]:
-            wd = datetime.strptime(d["date"], "%Y-%m-%d").isoweekday() % 7
-            lv = level(d["contributionCount"], peak)
-            cells.append(
-                f'<rect class="c" style="animation-delay:{0.35 + wi * 0.018:.3f}s" '
-                f'x="{gx + wi * (cell + cgap):.1f}" y="{gy + wd * (cell + cgap)}" width="{cell}" height="{cell}" rx="2.5" '
-                f'fill="{t["ramp"][lv]}"><title>{d["date"]}: {d["contributionCount"]}</title></rect>'
-            )
-
-    ly = gy + 7 * (cell + cgap) + 26
+    ly = 190
     bar_w = W - 2 * pad
     bx = pad
     bars, legend = [], []
@@ -166,7 +125,7 @@ def render(s, t):
     for i, (name, share, color) in enumerate(s["langs"]):
         w = bar_w * share
         bars.append(
-            f'<rect class="bar" style="animation-delay:{1.3 + 0.1 * i:.2f}s" x="{bx:.1f}" y="{ly}" width="{max(w, 2):.1f}" height="8" fill="{color}"/>'
+            f'<rect class="bar" style="animation-delay:{0.35 + 0.1 * i:.2f}s" x="{bx:.1f}" y="{ly}" width="{max(w, 2):.1f}" height="8" fill="{color}"/>'
         )
         bx += w
         legend.append(
@@ -174,11 +133,6 @@ def render(s, t):
             f'<text x="{lx + 13}" y="{ly + 30}" class="sub">{escape(name)} {share * 100:.1f}%</text>'
         )
         lx += 13 + len(f"{name} {share * 100:.1f}%") * 6.3 + 26
-
-    ramp_legend = "".join(
-        f'<rect x="{W - pad - 30 - (5 - i) * 14}" y="{gy - 44}" width="10" height="10" rx="2" fill="{c}"/>'
-        for i, c in enumerate(t["ramp"])
-    )
 
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" role="img" aria-label="GitHub stats for {escape(s['login'])}">
 <title>GitHub stats for {escape(s['login'])}</title>
@@ -191,14 +145,12 @@ text{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sa
 .sub{{font-size:11px;fill:{t["muted"]}}}
 .accent{{fill:{t["accent"]}}}
 .tile{{opacity:0;animation:up .5s cubic-bezier(.22,1,.36,1) forwards}}
-.c{{opacity:0;transform-box:fill-box;transform-origin:center;animation:pop .35s cubic-bezier(.22,1,.36,1) forwards}}
 .bar{{transform-box:fill-box;transform-origin:left;transform:scaleX(0);animation:grow .6s cubic-bezier(.22,1,.36,1) forwards}}
 .pulse{{transform-box:fill-box;transform-origin:center;animation:pulse 2.4s ease-in-out infinite}}
 @keyframes up{{from{{opacity:0;transform:translateY(8px)}}to{{opacity:1;transform:none}}}}
-@keyframes pop{{from{{opacity:0;transform:scale(.3)}}to{{opacity:1;transform:none}}}}
 @keyframes grow{{to{{transform:scaleX(1)}}}}
 @keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.35}}}}
-@media (prefers-reduced-motion:reduce){{.tile,.c,.bar,.pulse{{animation:none;opacity:1;transform:none}}}}
+@media (prefers-reduced-motion:reduce){{.tile,.bar,.pulse{{animation:none;opacity:1;transform:none}}}}
 </style>
 <rect x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="14" fill="{t["bg"]}" stroke="{t["border"]}"/>
 <circle class="pulse accent" cx="{pad + 5}" cy="40" r="5"/>
@@ -206,12 +158,6 @@ text{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sa
 <text x="{pad + 18 + len(s['name']) * 11 + 10}" y="47" class="handle">@{escape(s['login'])}</text>
 <text x="{W - pad}" y="47" class="sub" text-anchor="end">updated {updated}</text>
 {''.join(tile_svg)}
-{''.join(month_labels)}
-<text x="{pad}" y="{gy - 35}" class="label">Contribution activity</text>
-<text x="{W - pad - 30 - 5 * 14 - 6}" y="{gy - 35}" class="sub" text-anchor="end">less</text>
-{ramp_legend}
-<text x="{W - pad}" y="{gy - 35}" class="sub" text-anchor="end">more</text>
-{''.join(cells)}
 <rect x="{pad}" y="{ly}" width="{bar_w}" height="8" rx="4" fill="{t["panel"]}"/>
 <clipPath id="lb"><rect x="{pad}" y="{ly}" width="{bar_w}" height="8" rx="4"/></clipPath>
 <g clip-path="url(#lb)">{''.join(bars)}</g>
@@ -226,7 +172,7 @@ def main():
     for name, theme in THEMES.items():
         with open(os.path.join(OUT, f"stats-{name}.svg"), "w", encoding="utf-8") as f:
             f.write(render(s, theme))
-    print(json.dumps({k: v for k, v in s.items() if k != "weeks"}))
+    print(json.dumps(s))
 
 
 if __name__ == "__main__":
