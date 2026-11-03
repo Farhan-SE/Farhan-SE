@@ -36,11 +36,11 @@ query($login: String!) {
 THEMES = {
     "dark": {
         "bg": "#0d1117", "panel": "#161b22", "border": "#30363d",
-        "text": "#e6edf3", "muted": "#8b949e", "accent": "#2b7fff",
+        "text": "#e6edf3", "muted": "#8b949e",
     },
     "light": {
         "bg": "#ffffff", "panel": "#f6f8fa", "border": "#d0d7de",
-        "text": "#1f2328", "muted": "#59636e", "accent": "#1f6fe5",
+        "text": "#1f2328", "muted": "#59636e",
     },
 }
 
@@ -94,73 +94,75 @@ def summarize(user):
 
 
 def render(s, t):
-    W, H = 840, 250
-    pad = 28
-    updated = datetime.now(timezone.utc).strftime("%d %b %Y")
+    W, H = 840, 244
+    pad = 32
+    now = datetime.now(timezone.utc)
+    updated = f"{now.day} {now:%b %Y}"
+    unit = lambda n, one, many: one if n == 1 else many
 
-    tiles = [
-        ("Contributions", f"{s['total']:,}", "last 12 months"),
-        ("Pull requests", f"{s['prs']:,}", "all time"),
-        ("Longest streak", f"{s['longest']}d", f"current {s['current']}d"),
+    stats = [
+        ("CONTRIBUTIONS", f"{s['total']:,}", "", "in the last 12 months"),
+        ("PULL REQUESTS", f"{s['prs']:,}", "", "opened, all time"),
+        ("LONGEST STREAK", f"{s['longest']}", unit(s["longest"], " day", " days"), f"current streak {s['current']} {unit(s['current'], 'day', 'days')}"),
     ]
-    gap = 12
-    tw = (W - 2 * pad - gap * (len(tiles) - 1)) / len(tiles)
-    tile_svg = []
-    for i, (label, value, sub) in enumerate(tiles):
-        x = pad + i * (tw + gap)
-        tile_svg.append(
-            f'<g class="tile" style="animation-delay:{0.08 * i:.2f}s">'
-            f'<rect x="{x:.1f}" y="78" width="{tw:.1f}" height="84" rx="10" fill="{t["panel"]}" stroke="{t["border"]}"/>'
-            f'<text x="{x + 14:.1f}" y="100" class="label">{label}</text>'
-            f'<text x="{x + 14:.1f}" y="134" class="value">{value}</text>'
-            f'<text x="{x + 14:.1f}" y="152" class="sub">{sub}</text>'
+    cw = (W - 2 * pad) / len(stats)
+    cols = []
+    for i, (label, value, suffix, sub) in enumerate(stats):
+        x = pad + i * cw + (24 if i else 0)
+        divider = f'<line x1="{pad + i * cw:.1f}" y1="92" x2="{pad + i * cw:.1f}" y2="160" stroke="{t["border"]}"/>' if i else ""
+        tail = f'<tspan class="unit">{suffix}</tspan>' if suffix else ""
+        cols.append(
+            f'{divider}<g class="col" style="animation-delay:{0.08 * i:.2f}s">'
+            f'<text x="{x:.1f}" y="104" class="label">{label}</text>'
+            f'<text x="{x:.1f}" y="142" class="value">{value}{tail}</text>'
+            f'<text x="{x:.1f}" y="162" class="sub">{sub}</text>'
             f"</g>"
         )
 
-    ly = 190
+    ly = 196
     bar_w = W - 2 * pad
+    seg_gap = 3
+    usable = bar_w - seg_gap * (len(s["langs"]) - 1)
     bx = pad
     bars, legend = [], []
     lx = pad
     for i, (name, share, color) in enumerate(s["langs"]):
-        w = bar_w * share
+        w = max(usable * share, 4)
         bars.append(
-            f'<rect class="bar" style="animation-delay:{0.35 + 0.1 * i:.2f}s" x="{bx:.1f}" y="{ly}" width="{max(w, 2):.1f}" height="8" fill="{color}"/>'
+            f'<rect class="bar" style="animation-delay:{0.3 + 0.08 * i:.2f}s" x="{bx:.1f}" y="{ly}" width="{w:.1f}" height="6" rx="3" fill="{color}"/>'
         )
-        bx += w
+        bx += w + seg_gap
+        pct = f"{share * 100:.1f}%"
         legend.append(
-            f'<circle cx="{lx + 4}" cy="{ly + 26}" r="4" fill="{color}"/>'
-            f'<text x="{lx + 13}" y="{ly + 30}" class="sub">{escape(name)} {share * 100:.1f}%</text>'
+            f'<rect x="{lx}" y="{ly + 20}" width="8" height="8" rx="2" fill="{color}"/>'
+            f'<text x="{lx + 14}" y="{ly + 28}" class="lang">{escape(name)} <tspan class="pct">{pct}</tspan></text>'
         )
-        lx += 13 + len(f"{name} {share * 100:.1f}%") * 6.3 + 26
+        lx += 14 + len(f"{name} {pct}") * 6.6 + 24
 
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" role="img" aria-label="GitHub stats for {escape(s['login'])}">
 <title>GitHub stats for {escape(s['login'])}</title>
 <style>
-text{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;fill:{t["text"]}}}
-.h{{font-size:20px;font-weight:700}}
-.handle{{font-size:13px;fill:{t["muted"]}}}
-.label{{font-size:12px;fill:{t["muted"]};font-weight:600}}
-.value{{font-size:26px;font-weight:700}}
-.sub{{font-size:11px;fill:{t["muted"]}}}
-.accent{{fill:{t["accent"]}}}
-.tile{{opacity:0;animation:up .5s cubic-bezier(.22,1,.36,1) forwards}}
-.bar{{transform-box:fill-box;transform-origin:left;transform:scaleX(0);animation:grow .6s cubic-bezier(.22,1,.36,1) forwards}}
-.pulse{{transform-box:fill-box;transform-origin:center;animation:pulse 2.4s ease-in-out infinite}}
-@keyframes up{{from{{opacity:0;transform:translateY(8px)}}to{{opacity:1;transform:none}}}}
+text{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;fill:{t["text"]};font-variant-numeric:tabular-nums}}
+.h{{font-size:18px;font-weight:650}}
+.handle{{font-size:13px;font-weight:400;fill:{t["muted"]}}}
+.label{{font-size:10.5px;fill:{t["muted"]};font-weight:600;letter-spacing:.09em}}
+.value{{font-size:34px;font-weight:700;letter-spacing:-.02em}}
+.unit{{font-size:15px;font-weight:600;fill:{t["muted"]};letter-spacing:0}}
+.sub{{font-size:12px;fill:{t["muted"]}}}
+.lang{{font-size:12px;fill:{t["text"]}}}
+.pct{{fill:{t["muted"]}}}
+.col{{opacity:0;animation:up .55s cubic-bezier(.22,1,.36,1) forwards}}
+.bar{{transform-box:fill-box;transform-origin:left;transform:scaleX(0);animation:grow .7s cubic-bezier(.22,1,.36,1) forwards}}
+@keyframes up{{from{{opacity:0;transform:translateY(6px)}}to{{opacity:1;transform:none}}}}
 @keyframes grow{{to{{transform:scaleX(1)}}}}
-@keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.35}}}}
-@media (prefers-reduced-motion:reduce){{.tile,.bar,.pulse{{animation:none;opacity:1;transform:none}}}}
+@media (prefers-reduced-motion:reduce){{.col,.bar{{animation:none;opacity:1;transform:none}}}}
 </style>
-<rect x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="14" fill="{t["bg"]}" stroke="{t["border"]}"/>
-<circle class="pulse accent" cx="{pad + 5}" cy="40" r="5"/>
-<text x="{pad + 18}" y="47" class="h">{escape(s['name'])}</text>
-<text x="{pad + 18 + len(s['name']) * 11 + 10}" y="47" class="handle">@{escape(s['login'])}</text>
-<text x="{W - pad}" y="47" class="sub" text-anchor="end">updated {updated}</text>
-{''.join(tile_svg)}
-<rect x="{pad}" y="{ly}" width="{bar_w}" height="8" rx="4" fill="{t["panel"]}"/>
-<clipPath id="lb"><rect x="{pad}" y="{ly}" width="{bar_w}" height="8" rx="4"/></clipPath>
-<g clip-path="url(#lb)">{''.join(bars)}</g>
+<rect x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="12" fill="{t["bg"]}" stroke="{t["border"]}"/>
+<text x="{pad}" y="46" class="h">{escape(s['name'])}<tspan class="handle" dx="10">@{escape(s['login'])}</tspan></text>
+<text x="{W - pad}" y="46" class="sub" text-anchor="end">Updated {updated}</text>
+<line x1="{pad}" y1="70" x2="{W - pad}" y2="70" stroke="{t["border"]}"/>
+{''.join(cols)}
+{''.join(bars)}
 {''.join(legend)}
 </svg>
 """
