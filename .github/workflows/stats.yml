@@ -1,0 +1,52 @@
+name: Profile stats
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [scripts/stats.py, .github/workflows/stats.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: profile-stats
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      STATS_TOKEN: ${{ secrets.STATS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        if: env.STATS_TOKEN != ''
+        with:
+          python-version: "3.12"
+
+      - name: Stats card
+        if: env.STATS_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.STATS_TOKEN }}
+          GH_LOGIN: ${{ github.repository_owner }}
+        run: python scripts/stats.py assets
+
+      - name: Contribution snake
+        uses: Platane/snk@v3
+        with:
+          github_user_name: ${{ github.repository_owner }}
+          outputs: |
+            assets/snake-light.svg
+            assets/snake-dark.svg?palette=github-dark
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets
+          git diff --cached --quiet || git commit -m "chore: refresh profile stats"
+          git push

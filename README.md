@@ -43,5 +43,16 @@ Alongside full-stack development, I'm actively exploring **Artificial Intelligen
 ![Vercel](https://img.shields.io/badge/Vercel-%23000000.svg?style=for-the-badge&logo=vercel&logoColor=white)
 ![Render](https://img.shields.io/badge/Render-%46E3B7.svg?style=for-the-badge&logo=render&logoColor=white)
 
+# 📊 GitHub Stats:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/stats-dark.svg">
+  <img alt="GitHub stats" src="assets/stats-light.svg" width="100%">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/snake-dark.svg">
+  <img alt="Contribution snake" src="assets/snake-light.svg" width="100%">
+</picture>
 
 <!-- Proudly created with GPRM ( https://gprm.itsvg.in ) -->
